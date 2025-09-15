@@ -1,0 +1,497 @@
+{
+  "name": "Updated Ai Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "306a3a60-91a7-4099-b2e2-bf93272dbb77",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"mistralai/mistral-7b-instruct:free\",\n  \"messages\": [\n    { \"role\": \"system\", \"content\": \"You are a scriptwriter for short AI agent tool explainer videos.\" },\n    { \"role\": \"user\", \"content\": \"Generate a 10-scene script (scene1..scene10). For each scene include a line starting with **Visuals:** that clearly describes what should be shown in the scene. After the 10 scenes, also provide one caption, one set of hashtags, and one narration text for voiceover. Topic: AI agent tools and automation.\" }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "23fd93d6-8681-4d56-baae-fe4aada20f5c",
+      "name": "Generate Script + Caption + Hashtags1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -304,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1) Get the script text safely (handles several shapes)\nlet content =\n  $json.content ??\n  $json.message?.content ??\n  $json.choices?.[0]?.message?.content ??\n  $json.choices?.[0]?.text ??\n  $json.data?.choices?.[0]?.message?.content ??\n  \"\";\n\nif (typeof content !== \"string\") content = String(content || \"\");\nif (!content) {\n  // Surface what keys we actually have to debug easily\n  return [{ json: { error: \"No content string found\", keys: Object.keys($json || {}) } }];\n}\n\n// 2) Normalize newlines\ncontent = content.replace(/\\\\n/g, \"\\n\");\n\n// 3) Primary extraction: capture the text after each Visuals/ **Visuals:**,\n// stopping at the next Scene, Caption, Hashtags, Voiceover/Narration, or end.\nconst visualsRegex =\n  /(?:\\*\\*?\\s*)?(?:Scene\\s*\\d+\\s*:.*?\\n)?(?:\\*\\*Visuals:\\*\\*|Visuals:|Visual:)\\s*([\\s\\S]*?)(?=\\n(?:\\*\\*?\\s*Scene\\s*\\d+\\s*:|Scene\\s*\\d+\\s*:|---|\\*\\*Caption|Caption:|Hashtags:|Voiceover|Narration|$))/gi;\n\nlet visuals = [];\nlet m;\nwhile ((m = visualsRegex.exec(content)) !== null) {\n  visuals.push(m[1].trim());\n}\n\n// 4) Fallback extraction: if nothing matched above, try a simpler pattern\nif (visuals.length === 0) {\n  const simple =\n    /(?:\\*\\*Visuals:\\*\\*|Visuals:|Visual:)\\s*([\\s\\S]*?)(?=\\n(?:\\*\\*?\\s*Scene|\\bScene\\s*\\d+|---|\\*\\*Caption|Caption:|Hashtags:|Voiceover|Narration|$))/gi;\n  visuals = [...content.matchAll(simple)].map(x => x[1].trim());\n}\n\n// 5) If still nothing, return a helpful debug payload\nif (visuals.length === 0) {\n  return [{\n    json: {\n      error: \"No 'Visuals' blocks found\",\n      sample: content.slice(0, 400)\n    }\n  }];\n}\n\n// 6) Output up to 10 items (scene + prompt)\nreturn visuals.slice(0, 10).map((v, i) => ({\n  json: { scene: i + 1, prompt: v }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        528
+      ],
+      "id": "a462d45b-6dd7-4fa0-ba25-d8ff0c457073",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        384,
+        528
+      ],
+      "id": "20d1ff7c-6fa9-4398-b09b-96b3a7f8c3b1",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "name": "Replace Me",
+      "typeVersion": 1,
+      "position": [
+        640,
+        544
+      ],
+      "id": "e0db9c3e-d4a7-4567-b70c-d5434655ec30"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-azirGuGpIuKIjW3yGuxnsruFQ37yfAPZAdeAXiFaO2vFfoK1"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "image/png"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text_prompts\": [\n    { \"text\": \"{{$json.prompt}}\" }\n  ],\n  \"cfg_scale\": 7,\n  \"width\": 1024,\n  \"height\": 1024,\n  \"samples\": 1\n}\n",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1152,
+        544
+      ],
+      "id": "d503e23d-0548-447a-959b-d37cf4aded37",
+      "name": "Stability AI for generating images"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sanitize input text for Stability AI\nreturn items.map(item => {\n  let safe = item.json.prompt || \"\";\n\n  // Remove quotes that could break JSON\n  safe = safe.replace(/[\"“”]/g, \"'\");\n  // Flatten newlines\n  safe = safe.replace(/\\n+/g, \" \");\n\n  return { json: { prompt: safe } };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        544
+      ],
+      "id": "c0d505c9-5688-4321-99ca-a437881b75f8",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/tmp/image_{{$itemIndex + 1}}.png",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        800,
+        896
+      ],
+      "id": "747efe15-c60a-4ea1-a850-260e0351dd51",
+      "name": "Read/Write Files from Disk1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        80,
+        896
+      ],
+      "id": "d095b7af-3817-4e26-a46c-437c55c75b0b",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map((item, i) => {\n  item.json.index = i;\n  return item;\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        896
+      ],
+      "id": "b17e63fe-065c-45b1-8aa5-e5402250498e",
+      "name": "Code3"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items\n  .map((item, i) => {\n    if (item.binary && item.binary.data) {\n      // add an index for filenames\n      item.json.index = i;\n      return item;\n    }\n    return null;\n  })\n  .filter(item => item !== null);\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        896
+      ],
+      "id": "98ee38af-1b16-464b-92c7-8b95bbbaa428",
+      "name": "Code4"
+    },
+    {
+      "parameters": {
+        "command": "=ffmpeg -framerate 1/6 -i \"/tmp/image_%d.png\" \\\n       -i \"/tmp/voiceover.mp3\" \\\n       -c:v libx264 -pix_fmt yuv420p \\\n       -c:a aac -b:a 192k \\\n       -shortest -y \"/tmp/final_video.mp4\"\n"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        896
+      ],
+      "id": "bbe25402-1e0e-440d-89c0-8643785ad213",
+      "name": "Execute Command"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/tmp/final_video.mp4",
+        "options": {
+          "fileName": "Ai Agent Video"
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1488,
+        896
+      ],
+      "id": "ac7887b6-e923-4bd1-9b76-8fae814146a6",
+      "name": "Generating Video out of Images",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// -------- Grab text from previous node safely --------\nlet script =\n  $json.voiceText ??\n  $json.content ??\n  $json?.message?.content ??\n  $json?.choices?.[0]?.message?.content ??\n  $json?.choices?.[0]?.text ??\n  \"\";\n\nif (typeof script !== \"string\") script = String(script || \"\");\nscript = script.replace(/\\\\n/g, \"\\n\").trim();\nif (!script) return [{ json: { voiceText: \"\", note: \"No script text found\" } }];\n\n// -------- Intro text before first Scene (with or without ** ) --------\nlet introMatch = script.match(/^(.*?)Scene\\s*\\d+:?/is);\nlet introText = introMatch ? introMatch[1].trim() : \"\";\nintroText = introText.replace(/^Title:\\s*\".*?\"\\s*/i, \"\").trim();\n\n// -------- Collect all narrator/voiceover/narration text --------\nlet narrationLines = [];\n\n// This regex matches any of these forms:\n// **Narrator:** \"text\"\n// Narrator: \"text\"\n// **Narration:** (Voiceover) \"text\"\n// Narration Text (Voiceover): \"text\"\n// **Voiceover Narration**: text\nconst narrPattern = /(?:\\*\\*)?(?:Narrator|Narration(?:\\sText)?|Voiceover\\s*Narration)(?:\\*\\*)?\\s*(?:\\(Voiceover\\))?:?\\s*[\"“]?([^\"\\n”]+)[\"”]?/gi;\n\nlet m;\nwhile ((m = narrPattern.exec(script)) !== null) {\n  if (m[1]) narrationLines.push(m[1].trim());\n}\n\n// Also catch a standalone **Voiceover Narration**: text without quotes\nconst voiceoverPattern = /\\*\\*Voiceover\\s*Narration\\*\\*:\\s*([^\"\\n]+)/gi;\nwhile ((m = voiceoverPattern.exec(script)) !== null) {\n  narrationLines.push(m[1].trim());\n}\n\n// -------- Join intro + narration --------\nlet cleanText = [introText, ...narrationLines].filter(Boolean).join(\" \");\n\n// -------- Clean stray markdown/symbols --------\ncleanText = cleanText\n  .replace(/[*#-]/g, \"\")\n  .replace(/\\s{2,}/g, \" \")\n  .trim();\n\nreturn [{ json: { voiceText: cleanText } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        1216
+      ],
+      "id": "988db5bb-f83c-494d-9931-72e8f8a6310d",
+      "name": "Code5"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.elevenlabs.io/v1/text-to-speech/iWNf11sz1GrUE4ppxTOL",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "audio/mpeg"
+            },
+            {
+              "name": "xi-api-key",
+              "value": "sk_951b8c4ea8d94b7093df9b2fc7dc394d453e135ea47c0228"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": {{ JSON.stringify($json.voiceText) }},\n  \"model_id\": \"eleven_monolingual_v1\",\n  \"voice_settings\": {\n    \"stability\": 0.5,\n    \"similarity_boost\": 0.5\n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        1216
+      ],
+      "id": "264697a4-ba6a-4da3-ba22-c720927354cf",
+      "name": "ElevenLabs TTS"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/tmp/voiceover.mp3",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1104,
+        1216
+      ],
+      "id": "d91abfe3-ce27-49de-9f6e-7dfc1f00c4f8",
+      "name": "Read/Write Files from Disk2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        416,
+        1216
+      ],
+      "id": "28e832fc-7655-4c27-8a9c-931f145a7976",
+      "name": "5 Seconds Delay",
+      "webhookId": "7c939964-8024-4a27-94f0-162556f873f8"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Generate Script + Caption + Hashtags1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Script + Caption + Hashtags1": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Stability AI for generating images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stability AI for generating images": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk1": {
+      "main": [
+        [
+          {
+            "node": "Execute Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code3": {
+      "main": [
+        [
+          {
+            "node": "Code4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code4": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Command": {
+      "main": [
+        [
+          {
+            "node": "Generating Video out of Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code5": {
+      "main": [
+        [
+          {
+            "node": "5 Seconds Delay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ElevenLabs TTS": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk2": {
+      "main": [
+        [
+          {
+            "node": "Execute Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5 Seconds Delay": {
+      "main": [
+        [
+          {
+            "node": "ElevenLabs TTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "821ecced-38bc-4eaf-8ade-82d05996bef7",
+  "meta": {
+    "instanceId": "e9fe7a89774d81c3fd5cc6486a6e8130156a83c2a1247642e49a606ee9b1662f"
+  },
+  "id": "3osZJ7Qw5YBiyd8g",
+  "tags": []
+}
