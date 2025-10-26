@@ -21,7 +21,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer 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"
+              "value": "Openrouter API Key"
             },
             {
               "name": "Content-Type",
@@ -244,7 +244,7 @@
             },
             {
               "name": "xi-api-key",
-              "value": "sk_951b8c4ea8d94b7093df9b2fc7dc394d453e135ea47c0228"
+              "value": "Eleven Labs API Key"
             },
             {
               "name": "Content-Type",
