@@ -90,7 +90,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer sk-azirGuGpIuKIjW3yGuxnsruFQ37yfAPZAdeAXiFaO2vFfoK1"
+              "value": "Stability Api Key"
             },
             {
               "name": "Content-Type",
